@@ -63,6 +63,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 )
 
 type home struct{}
@@ -102,6 +103,15 @@ func user(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"name":"Amit"}`))
 }
 
+func handleUserByQuery(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.URL.Query().Get("id")) // [5]
+	if err != nil || id < 1 {
+		http.NotFound(w, r)
+		return
+	}
+	fmt.Fprintf(w, "User id from query: %d", id)
+}
+
 func main() {
 	mux := http.NewServeMux()
 
@@ -111,6 +121,7 @@ func main() {
 	// method 2 :
 	mux.Handle("/user", http.HandlerFunc(user))  // [3]
 	mux.HandleFunc("/user/{id}", handleUserById) // [2]*
+	mux.HandleFunc("GET /user/view", handleUserByQuery)
 
 	// method 3 :
 	mux.HandleFunc("GET /posts", func(w http.ResponseWriter, r *http.Request) { // [3]*
@@ -147,6 +158,13 @@ func main() {
 			for web developers is that it can’t distinguish JSON from plain text.
 			So, by default, JSON responses will be sent with a Content-Type: text/plain; charset=utf-8 header.
 			You can prevent this from happening by setting the correct header manually in your handler
+
+[5] : URL query parameter It retrieve the value of a given parameter from the URL query string,
+			which we can do using the r.URL.Query().Get() method.
+			This will always return a string value for a parameter, or the empty string "" if no matching parameter exists.
+			Because a parameter is untrusted user input, we should validate it to make sure it’s sane and sensible.
+			In above example we check that it contains a positive integer value "id".
+			We do this by trying to convert the string value to an integer with the strconv.Atoi() function.
 
 [x]* : These are the features introduced in Go 1.22.
 			1. mux.HandleFunc("/user/{id}", handleUserById), here {id} is the wildcard entry.
