@@ -41,6 +41,20 @@ The pattern "/" essentially means match a single slash, followed by anything (or
 
 It’s not possible to change the behavior of Go’s servemux to do this,
 but we can include a simple check for the "/" in the hander.
+
+-----
+
+Default servemux:
+
+The http.Handle() and http.HandleFunc() functions allow us to register routes without explicitly declaring a servemux, like this:
+	http.HandleFunc("/path", pathHandler)
+	log.Fatal(http.ListenAndServe(":3000", nil))
+
+- Behind the scenes, these functions register their routes with the default servemux.
+- This is just a regular servemux like we’ve already been using, but it is initialized automatically by Go
+and is stored in the http.DefaultServeMux global variable.
+- When we pass nil as the second argument to http.ListenAndServe(), the server will use http.DefaultServeMux for routing.
+
 */
 
 package main
@@ -65,6 +79,17 @@ func user(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Hello User"))
 }
 
+func handlePostCreate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		w.Header().Set("Allow", "POST") // [1]
+		// w.WriteHeader(405)
+		// w.Write([]byte("Method not allowed"))
+		http.Error(w, "Method not Allowed", 405) // [2]
+		return
+	}
+	w.Write([]byte("You can create new posts here!"))
+}
+
 func main() {
 	mux := http.NewServeMux()
 
@@ -72,12 +97,14 @@ func main() {
 	mux.Handle("/", home{})
 
 	// method 2 :
-	mux.Handle("/user", http.HandlerFunc(user)) // HandlerFunc(f) is a Handler that calls the function f
+	mux.Handle("/user", http.HandlerFunc(user)) // [3]
 
 	// method 3 :
 	mux.HandleFunc("/posts", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Your posts were here..."))
 	})
+
+	mux.HandleFunc("/posts/create", handlePostCreate)
 
 	server := http.Server{
 		Addr:    ":3000",
@@ -86,3 +113,16 @@ func main() {
 	log.Print("server listening on http://localhost:3000")
 	log.Fatal(server.ListenAndServe())
 }
+
+/*
+[1] : let the user know which request methods are supported for that particular URL.
+			Important: Changing the response header map after a call to w.WriteHeader() or
+			w.Write() will have no effect on the headers that the user receives.
+			We need to make sure that your response header map contains all the headers
+			we want before we call those methods.
+
+[2] : http.Error() is a lightweight helper function which takes a given message and status code,
+			then calls the w.WriteHeader() and w.Write() methods behind the scenes for us.
+
+[3] : HandlerFunc(f) is a Handler that calls the function f.
+*/
