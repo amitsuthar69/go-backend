@@ -60,6 +60,7 @@ and is stored in the http.DefaultServeMux global variable.
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 )
@@ -75,8 +76,14 @@ func (h home) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("2024 is for Go!"))
 }
 
-func user(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("Hello User"))
+func handleUserById(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		w.Header().Set("Allow", "GET")
+		http.Error(w, "Method not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	id := r.PathValue("id") // [1]*
+	fmt.Fprintf(w, "Hello user %s", id)
 }
 
 func handlePostCreate(w http.ResponseWriter, r *http.Request) {
@@ -84,10 +91,15 @@ func handlePostCreate(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Allow", "POST") // [1]
 		// w.WriteHeader(405)
 		// w.Write([]byte("Method not allowed"))
-		http.Error(w, "Method not Allowed", 405) // [2]
+		http.Error(w, "Method not Allowed", http.StatusMethodNotAllowed) // [2]
 		return
 	}
 	w.Write([]byte("You can create new posts here!"))
+}
+
+func user(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json") // [4]
+	w.Write([]byte(`{"name":"Amit"}`))
 }
 
 func main() {
@@ -97,14 +109,15 @@ func main() {
 	mux.Handle("/", home{})
 
 	// method 2 :
-	mux.Handle("/user", http.HandlerFunc(user)) // [3]
+	mux.Handle("/user", http.HandlerFunc(user))  // [3]
+	mux.HandleFunc("/user/{id}", handleUserById) // [2]*
 
 	// method 3 :
-	mux.HandleFunc("/posts", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /posts", func(w http.ResponseWriter, r *http.Request) { // [3]*
 		w.Write([]byte("Your posts were here..."))
 	})
 
-	mux.HandleFunc("/posts/create", handlePostCreate)
+	mux.HandleFunc("POST /posts/create", handlePostCreate)
 
 	server := http.Server{
 		Addr:    ":3000",
@@ -125,4 +138,19 @@ func main() {
 			then calls the w.WriteHeader() and w.Write() methods behind the scenes for us.
 
 [3] : HandlerFunc(f) is a Handler that calls the function f.
+
+[4] : Go will attempt to set the correct Cnotent-Type for us by content sniffing the response body
+			with the http.DetectContentType() function. If this function can’t guess the content type,
+			Go will fall back to setting the header Content-Type: application/octet-stream instead.
+
+			The http.DetectContentType() function generally works quite well, but a common gotcha
+			for web developers is that it can’t distinguish JSON from plain text.
+			So, by default, JSON responses will be sent with a Content-Type: text/plain; charset=utf-8 header.
+			You can prevent this from happening by setting the correct header manually in your handler
+
+[x]* : These are the features introduced in Go 1.22.
+			1. mux.HandleFunc("/user/{id}", handleUserById), here {id} is the wildcard entry.
+			2. id := r.PathValue("id") gives the value of wildcard with name id.
+			3. Method Matching, We can now explicitly mention the HTTP Method we want to allow for given patterns.
+				 Any other Method except the mentioned one will return a 404 NOT FOUND
 */
