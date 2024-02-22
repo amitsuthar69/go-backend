@@ -61,6 +61,7 @@ package main
 
 import (
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"strconv"
@@ -74,7 +75,20 @@ func (h home) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	w.Write([]byte("2024 is for Go!"))
+
+	templ, err := template.ParseFiles("templates/index.html")
+	if err != nil {
+		log.Print(err.Error())
+		http.Error(w, "Error Parsing Template", http.StatusInternalServerError)
+		return
+	}
+
+	err = templ.Execute(w, nil)
+	if err != nil {
+		log.Print(err.Error())
+		http.Error(w, "Error Executing Template", http.StatusInternalServerError)
+		return
+	}
 }
 
 func handleUserById(w http.ResponseWriter, r *http.Request) {
